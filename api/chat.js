@@ -11,15 +11,17 @@ export default async function handler(req, res) {
     }
 
     // Build a simple chat-style prompt
-    const prompt = messages.map(m => {
-      if (m.role === "system") return `System: ${m.content}`;
-      if (m.role === "user") return `User: ${m.content}`;
-      if (m.role === "assistant") return `Assistant: ${m.content}`;
-      return "";
-    }).join("\n") + "\nAssistant:";
+    const prompt = messages
+      .map(m => {
+        if (m.role === "system") return `System: ${m.content}`;
+        if (m.role === "user") return `User: ${m.content}`;
+        if (m.role === "assistant") return `Assistant: ${m.content}`;
+        return "";
+      })
+      .join("\n") + "\nAssistant:";
 
     const hfRes = await fetch(
-      "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-0.5B-Instruct",
+      "https://router.huggingface.co/hf-inference/models/Qwen/Qwen2.5-0.5B-Instruct",
       {
         method: "POST",
         headers: {
@@ -33,7 +35,7 @@ export default async function handler(req, res) {
             temperature: 0.4,
             return_full_text: false
           }
-        })
+        }),
       }
     );
 
@@ -49,7 +51,7 @@ export default async function handler(req, res) {
       text = data[0].generated_text;
     }
 
-    return res.status(200).json({ text: text || "(No output.)" });
+    return res.status(200).json({ text: text || "(no output)" });
 
   } catch (err) {
     console.error("API error:", err);
