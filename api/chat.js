@@ -6,8 +6,8 @@ export default async function handler(req, res) {
   try {
     const { messages } = req.body;
 
-    if (!messages || !Array.isArray(messages)) {
-      return res.status(400).json({ error: "Invalid messages array" });
+    if (!Array.isArray(messages)) {
+      return res.status(400).json({ error: "messages must be an array" });
     }
 
     const prompt =
@@ -20,12 +20,12 @@ export default async function handler(req, res) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.HF_API_TOKEN}`
+          Authorization: `Bearer ${process.env.HF_API_TOKEN}`
         },
         body: JSON.stringify({
           inputs: prompt,
           parameters: {
-            max_new_tokens: 150,
+            max_new_tokens: 120,
             temperature: 0.4,
             return_full_text: false
           }
@@ -33,12 +33,19 @@ export default async function handler(req, res) {
       }
     );
 
+    const raw = await hfRes.text();
+
     if (!hfRes.ok) {
-      const err = await hfRes.text();
-      return res.status(500).json({ error: err });
+      return res.status(500).json({ error: raw });
     }
 
-    const data = await hfRes.json();
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return res.status(500).json({ error: raw });
+    }
+
     const text = data?.[0]?.generated_text || "(no output)";
 
     res.status(200).json({ text });
@@ -47,4 +54,3 @@ export default async function handler(req, res) {
     res.status(500).json({ error: String(e) });
   }
 }
-
