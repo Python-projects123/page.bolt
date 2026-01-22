@@ -10,15 +10,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Invalid messages array" });
     }
 
-    // Build a simple chat-style prompt
-    const prompt = messages
-      .map(m => {
-        if (m.role === "system") return `System: ${m.content}`;
-        if (m.role === "user") return `User: ${m.content}`;
-        if (m.role === "assistant") return `Assistant: ${m.content}`;
-        return "";
-      })
-      .join("\n") + "\nAssistant:";
+    const prompt =
+      messages.map(m => `${m.role}: ${m.content}`).join("\n") +
+      "\nassistant:";
 
     const hfRes = await fetch(
       "https://router.huggingface.co/hf-inference/models/Qwen/Qwen2.5-0.5B-Instruct",
@@ -26,35 +20,31 @@ export default async function handler(req, res) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.HF_API_TOKEN}`,
+          "Authorization": `Bearer ${process.env.HF_API_TOKEN}`
         },
         body: JSON.stringify({
           inputs: prompt,
           parameters: {
-            max_new_tokens: 220,
+            max_new_tokens: 150,
             temperature: 0.4,
             return_full_text: false
           }
-        }),
+        })
       }
     );
 
     if (!hfRes.ok) {
-      const errText = await hfRes.text();
-      return res.status(500).json({ error: errText });
+      const err = await hfRes.text();
+      return res.status(500).json({ error: err });
     }
 
     const data = await hfRes.json();
+    const text = data?.[0]?.generated_text || "(no output)";
 
-    let text = "";
-    if (Array.isArray(data) && data[0]?.generated_text) {
-      text = data[0].generated_text;
-    }
+    res.status(200).json({ text });
 
-    return res.status(200).json({ text: text || "(no output)" });
-
-  } catch (err) {
-    console.error("API error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
   }
 }
+
