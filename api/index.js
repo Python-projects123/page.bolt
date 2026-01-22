@@ -6,13 +6,16 @@ export default async function handler(req, res) {
   try {
     const { messages } = req.body;
 
-    if (!Array.isArray(messages)) {
-      return res.status(400).json({ error: "messages must be an array" });
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "Invalid messages array" });
     }
 
-    const prompt =
-      messages.map(m => `${m.role}: ${m.content}`).join("\n") +
-      "\nassistant:";
+    const prompt = messages.map(m => {
+      if (m.role === "system") return `System: ${m.content}`;
+      if (m.role === "user") return `User: ${m.content}`;
+      if (m.role === "assistant") return `Assistant: ${m.content}`;
+      return "";
+    }).join("\n") + "\nAssistant:";
 
     const hfRes = await fetch(
       "https://router.huggingface.co/hf-inference/models/Qwen/Qwen2.5-0.5B-Instruct",
@@ -20,12 +23,12 @@ export default async function handler(req, res) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.HF_API_TOKEN}`
+          "Authorization": `Bearer ${process.env.HF_API_TOKEN}`
         },
         body: JSON.stringify({
           inputs: prompt,
           parameters: {
-            max_new_tokens: 120,
+            max_new_tokens: 180,
             temperature: 0.4,
             return_full_text: false
           }
@@ -33,24 +36,22 @@ export default async function handler(req, res) {
       }
     );
 
-    const raw = await hfRes.text();
-
     if (!hfRes.ok) {
-      return res.status(500).json({ error: raw });
+      const errText = await hfRes.text();
+      return res.status(500).json({ error: errText });
     }
 
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      return res.status(500).json({ error: raw });
+    const data = await hfRes.json();
+
+    let text = "";
+    if (Array.isArray(data) && data[0]?.generated_text) {
+      text = data[0].generated_text;
     }
 
-    const text = data?.[0]?.generated_text || "(no output)";
+    return res.status(200).json({ text: text || "(no output)" });
 
-    res.status(200).json({ text });
-
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
+  } catch (err) {
+    console.error("API error:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
